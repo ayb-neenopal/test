@@ -713,12 +713,13 @@ DBT (Data Build Tool) is a popular framework for transforming and testing data i
 - **Documentation**: Auto-generate model and test documentation for easier collaboration.
 - **Data Lineage**: Visualize dependencies between models for better understanding.
 
-##**Testing using dbt**
+## **Testing using dbt**
+
 file structure 
 
 ![image](https://github.com/user-attachments/assets/69f519e2-8523-49fd-8223-5d99581b9c85)
 
-##**runs tests usind dbt test command**
+## **runs tests usind dbt test command**
 ![image](https://github.com/user-attachments/assets/63abebad-42cf-47c4-ae9b-c8fc0f6a3af5)
 
 
@@ -755,9 +756,14 @@ It can also be scheduled using tools like **Apache Airflow**.
 
 Great Expectations creates a file structure in the following format:
 
-great_expectations/ ├── expectations/ # Stores expectation suites (validation rules) ├── checkpoints/ # Defines when and where to run validations ├── great_expectations.yml # Main configuration file ├── validations/ # Stores validation results └── uncommitted/ # Contains sensitive files (e.g., database credentials)
+- **great_expectations/**
+  - **expectations/**: Stores expectation suites (validation rules)
+  - **checkpoints/**: Defines when and where to run validations
+  - **great_expectations.yml**: Main configuration file
+  - **validations/**: Stores validation results
+  - **uncommitted/**: Contains sensitive files (e.g., database credentials)
 
-###**Testing through great_expectations
+### **Testing through great_expectations**
 ![image](https://github.com/user-attachments/assets/a3d889ba-7e4d-44ad-b223-15c38f55ccf6)
 
 ---
