@@ -690,7 +690,230 @@ Here, we have simply used a Python function to extract the data and run automate
 ![image](https://github.com/user-attachments/assets/20927f29-ebeb-47c6-a82b-cc6214420efd)
 
 ---
+## Testing Glue Job with the help of Pytest 
+- **Dataset**:
+- ![image](https://github.com/user-attachments/assets/423c267c-2be1-4714-ba12-fcbf08e4c3dc)
+- **Transformed Dataset**:
+- made two transformations in data : 1 - Filtering the male gender, 2 - changing name to lower case
+- ![image](https://github.com/user-attachments/assets/57bc07d3-3468-4e14-8880-fbe5fb3790e5)
 
+### **Glue Job Code** 
+-This script implements an ETL pipeline using AWS Glue and PySpark to process customer data stored in S3. It reads the data into a DynamicFrame, filters it by gender, converts it to a DataFrame, transforms specific column values to lowercase, and writes the processed data back to S3 in Parquet format. The pipeline utilizes GlueContext and PySpark functions for efficient data processing and storage.
+
+```python
+import logging
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.dynamicframe import DynamicFrame
+from pyspark.sql import DataFrame
+
+# Function to create Spark context and Glue context
+def create_spark_context():
+    sc = SparkContext()
+    glueContext = GlueContext(sc)
+    logger = glueContext.get_logger()
+    spark = glueContext.spark_session
+    job= Job(glueContext)
+    return glueContext, glueContext.spark_session
+
+# Function to read customer dataset from AWS S3
+def read_customer_dataset(glueContext):
+    logging.info("Reading customer data from AWS S3")
+    dyf = glueContext.create_dynamic_frame_from_options(
+        connection_type="s3",
+        connection_options={"paths": ["s3://data-uploads-name-useast1/customer/customer_info/"]},
+        format="parquet"
+    )
+    return dyf
+
+# Function to filter a column in the DynamicFrame
+def filter_column_from_dynamic_frame(dyf, filter_value, column_name):
+    logging.info("Filtering data based on a value in column")
+    filtered_dyf = dyf.filter(lambda x: x[column_name] == filter_value)
+    return filtered_dyf
+
+# Function to convert DynamicFrame to PySpark DataFrame
+def dynamic_frame_to_pyspark_dataframe(dyf):
+    logging.info("converting dynamic frame to pyspark dataframe")
+    df = dyf.toDF()
+    return df
+
+# Function to lowercase the values in a specific column of a PySpark DataFrame
+def lowercase_column_values(df: DataFrame, column_name: str) -> DataFrame:
+    logging.info(f"Lowercasing values in column: {column_name}")
+    df = df.withColumn(column_name, lower(col(column_name)))
+    return df
+
+# Function to write DataFrame to S3 as Parquet format
+def write_dataframe_to_s3(df, glueContext, path: str):
+    logging.info(f"Writing DataFrame to S3 bucket at {path}")
+    dyf = DynamicFrame.fromDF(df, glueContext, "dyf")
+    glueContext = GlueContext(SparkContext.getOrCreate())
+    glueContext.write_dynamic_frame.from_options(
+        frame=dyf,
+        connection_type="s3",
+        connection_options={"path": path, "partitionKeys": []},
+        format="parquet"
+    )
+
+# Main function to execute the ETL process
+def main():
+    # Step 1: Create Spark context and Glue context
+    glueContext, spark = create_spark_context()
+
+    # Step 2: Read customer dataset from S3
+    dyf = read_customer_dataset(glueContext)
+
+    # Step 3: Filter data based on gender column (e.g., 'male')
+    dyf_filtered = filter_column_from_dynamic_frame(dyf, 'male', 'gender')
+    dyf_filtered.show()
+
+    # Step 4: Convert filtered DynamicFrame to PySpark DataFrame
+    df = dynamic_frame_to_pyspark_dataframe(dyf_filtered)
+
+    # Step 5: Apply transformation (Lowercase the 'first_name' column)
+    df_transformed = lowercase_column_values(df, 'first_name')
+
+
+    # Step 7: Write transformed data to S3
+    output_path = "s3://data-uploads-adriano-useast1/customer/customer_info_filtered/"
+    # Step 6: Display the transformed DataFrame
+
+    df_transformed.show()
+
+    write_dataframe_to_s3(df_transformed, glueContext, output_path)
+
+# Execute the main function
+if __name__ == "__main__":
+    main()
+
+```
+
+### **Testing code(Pytest)**
+-This code provides Pytest-based unit tests for AWS Glue PySpark transformations. It includes fixtures to initialize a Spark session and GlueContext, and to create sample PySpark DataFrames and DynamicFrames for testing. The tests verify the correctness of the lowercase_column_values and filter_column_from_dynamic_frame functions by asserting transformations and filtering logic.
+
+```python
+import pytest
+import logging
+from pyspark.sql.types import StructType, StructField, StringType
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.dynamicframe import DynamicFrame
+from transform_customer_table import lowercase_column_values, filter_column_from_dynamic_frame
+
+
+# Fixture to initialize Spark session and Glue context
+@pytest.fixture(scope="session")
+def spark_session():
+    """
+    Initializes a Spark session and Glue context for testing.
+    """
+    # Create a SparkContext instance
+    sc = SparkContext()
+    sc.setLogLevel("ERROR")
+    
+    # Initialize GlueContext
+    glueContext = GlueContext(sc)
+    
+    # Return the Spark session and GlueContext
+    spark = glueContext.spark_session
+    return spark, glueContext
+
+
+# Fixture to create a sample PySpark DataFrame
+@pytest.fixture
+def sample_df_dataset(spark_session):
+    """
+    Creates a sample PySpark DataFrame for testing.
+    """
+    # Define the schema for the DataFrame
+    schema = StructType([
+        StructField("first_name", StringType(), True),
+        StructField("last_name", StringType(), True),
+        StructField("email", StringType(), True)
+    ])
+
+    # Sample data for the DataFrame
+    data = [
+        ("John", "Doe", "john.doe@example.com"),
+        ("Jane", "Smith", "jane.smith@example.com"),
+        ("Alice", "Brown", "alice.brown@example.com")
+    ]
+
+    # Access the Spark session and GlueContext
+    spark_session, GlueContext  = spark_session
+
+    # Create the DataFrame
+    df = spark_session.createDataFrame(data, schema=schema)
+    
+    # Return the created DataFrame
+    return df
+
+
+# Fixture to create a sample DynamicFrame
+@pytest.fixture
+def sample_dyf_dataset(spark_session):
+    """
+    Creates a sample DynamicFrame for testing.
+    """
+    # Define the schema for the DataFrame
+    schema = StructType([
+        StructField("first_name", StringType(), True),
+        StructField("last_name", StringType(), True),
+        StructField("gender", StringType(), True),
+        StructField("email", StringType(), True)
+    ])
+
+    # Sample data
+    data = [
+        ("John", "Doe", "male", "john.doe@example.com"),
+        ("Jane", "Smith", "female", "jane.smith@example.com"),
+        ("Alice", "Brown", "female", "alice.brown@example.com")
+    ]
+
+    # Access the Spark session and GlueContext
+    spark_session, glueContext = spark_session
+
+    # Create the DataFrame
+    df = spark_session.createDataFrame(data, schema=schema)
+
+    # Convert the DataFrame to a DynamicFrame
+    dyf = DynamicFrame.fromDF(df, glueContext, "dyf_dataset")
+
+    # Return the DynamicFrame
+    return dyf
+
+
+# Test for lowercase transformation
+def test_lower_case(sample_df_dataset):
+    """
+    Tests the lowercase transformation on a specific column.
+    """
+    # Apply lowercase transformation on the "first_name" column
+    df = lowercase_column_values(sample_df_dataset, "first_name")
+
+    # Assert the number of rows remains the same
+    assert df.count() == 3
+
+    # Collect rows for assertion
+    rows = df.collect()
+    # Assert that the values in the "first_name" column are lowercase
+    assert rows[0].first_name == 'john'
+    assert rows[1].first_name == 'jane'
+    assert rows[2].first_name == 'alice'
+
+
+# Test for filtering DynamicFrame by gender
+def test_filter_gender(sample_dyf_dataset):
+    """
+    Tests the filtering of a DynamicFrame by gender column.
+    """
+    # Apply filter transformation on the "gender" column with value 'male'
+    dyf = filter_column_from_dynamic_frame(sample_dyf_dataset, 'male', 'gender')
+
+    # Assert that the count of rows is correct after filtering
+    assert dyf.count() == 1
+```
 ## DBT (Data Build Tool)
 
 DBT (Data Build Tool) is a popular framework for transforming and testing data in the data warehouse. It allows analysts and data engineers to write modular SQL transformations, schedule them, and perform tests on data quality within the pipeline.
