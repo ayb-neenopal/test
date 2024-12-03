@@ -274,6 +274,33 @@ chispa.assert_column_equality(res, "expected", "actual")
 - DBT  
 
 ---
+### *Example of data quality test**
+```python
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Initialize Spark session
+spark = SparkSession.builder.appName("ETL Data Quality Test").getOrCreate()
+
+# Sample data with missing values
+data = [(1, "John", "2023-01-01"), (2, "Jane", None), (3, "Doe", "2023-02-01"), (4, None, "2023-03-01")]
+columns = ["ID", "Name", "Created_At"]
+df = spark.createDataFrame(data, columns)
+
+# Data Quality Test: Check for missing values
+def data_quality_check(df):
+    missing_data = df.filter(col("Name").isNull() | col("Created_At").isNull())
+    if missing_data.count() > 0:
+        print(f"Test Failed: Found {missing_data.count()} rows with missing values.")
+        missing_data.show()
+    else:
+        print("Test Passed: No missing values.")
+
+# Run test
+data_quality_check(df)
+```
+
+
 
 ### **Integration Tests**  
 Integrating tests in data pipelines ensures that the entire data workflow—from ingestion, through transformation, to final reporting—works as expected and meets business requirements.  
@@ -289,13 +316,145 @@ Integrating tests in data pipelines ensures that the entire data workflow—from
 
 ---
 
+### Example of integration test
+```python
+# Importing necessary PySpark modules
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Step 1: Initialize Spark session
+# This is where we initialize a Spark session which will allow us to interact with Spark and run operations on data.
+spark = SparkSession.builder.appName("ETL Integration Test").getOrCreate()
+
+# Step 2: Sample data for extraction (Source)
+# Here, we create a sample source data which simulates the data we would extract from a source (e.g., database, API, file).
+# The source data consists of two rows with columns: ID, Name, and Created_At.
+source_data = [(1, "John", "2023-01-01"), (2, "Jane", "2023-01-02")]
+source_columns = ["ID", "Name", "Created_At"]
+source_df = spark.createDataFrame(source_data, source_columns)
+
+# Step 3: Transformation
+# In this step, we simulate a transformation on the extracted data. We are adding a new column "Status" based on a condition.
+# The transformation checks if the "Name" column contains "John" and assigns the string "1" to the "Status" column if true.
+transformed_df = source_df.withColumn("Status", col("Name").rlike("John").cast("string"))
+
+# Step 4: Load data (In-memory simulation of target)
+# This is the simulated target of the ETL pipeline. Here, we simply use the transformed dataframe as the target.
+# In a real scenario, this would be the step where data is loaded into the target system (e.g., database, data warehouse).
+target_df = transformed_df
+
+# Step 5: Integration Test - Check if transformation is correctly applied
+# Now, we perform the integration test. We want to verify that the transformation works correctly.
+# Specifically, the "Status" column should be "1" for the rows where the "Name" is "John".
+def integration_test(source_df, target_df):
+    # The filter condition checks if the "Status" column is "1", indicating that the transformation was applied correctly.
+    transformed_rows = target_df.filter(col("Status") == "1")
+    
+    # If there are rows with the correct transformation, the test passes; otherwise, it fails.
+    if transformed_rows.count() > 0:
+        print(f"Test Passed: {transformed_rows.count()} row(s) correctly transformed.")
+    else:
+        print("Test Failed: Transformation not applied correctly.")
+
+# Step 6: Run the test
+# We invoke the integration_test function, passing both the source and transformed (target) dataframes.
+integration_test(source_df, target_df)
+```
+
 ### **Performance Tests**  
 Assesses the resource utilization and scalability of the pipeline. This is crucial for high-volume data pipelines to meet the required SLAs.  
 
+
+### Example of Performance test
+```python
+# Importing necessary PySpark modules
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import time
+
+# Step 1: Initialize Spark session
+# The Spark session allows us to work with data in a distributed manner, which is essential for performance testing of large datasets.
+spark = SparkSession.builder.appName("ETL Performance Test").getOrCreate()
+
+# Step 2: Sample large data for extraction (Source)
+# We simulate a large dataset (for testing performance) that consists of multiple rows.
+# Here, we create 100,000 rows as a sample large dataset.
+source_data = [(i, f"Name_{i}", f"2023-01-{i%31 + 1:02d}") for i in range(1, 100001)]
+source_columns = ["ID", "Name", "Created_At"]
+source_df = spark.createDataFrame(source_data, source_columns)
+
+# Step 3: Transformation (Add a new column for testing)
+# We simulate a transformation where we add a new column "Status" based on a condition.
+# The transformation checks if the "Name" column contains "Name_1" and assigns "Active" to the "Status" column if true.
+transformed_df = source_df.withColumn("Status", col("Name").rlike("Name_1").cast("string"))
+
+# Step 4: Performance Test - Measure Transformation Time
+# We perform a performance test by measuring the time it takes for the transformation step to execute.
+def performance_test(df):
+    start_time = time.time()  # Start measuring time
+    transformed_df = df.withColumn("Status", col("Name").rlike("Name_1").cast("string"))
+    end_time = time.time()  # End measuring time
+    
+    # Calculate the time taken for the transformation
+    execution_time = end_time - start_time
+    print(f"Performance Test: Transformation took {execution_time:.4f} seconds.")
+    
+    # Define a performance threshold (e.g., transformation should complete in less than 5 seconds)
+    if execution_time < 5:
+        print("Test Passed: Transformation completed within acceptable time limit.")
+    else:
+        print("Test Failed: Transformation took too long.")
+
+# Step 5: Run the Performance Test
+# We invoke the performance_test function, passing the source DataFrame to check the time taken for transformation.
+performance_test(source_df)
+```
 ---
 
 ### **End-to-End Tests**  
 Tests the data pipeline as a whole, from the source to the target or output. This could be categorized as “black box” testing because there is no need to know the internal structure of the pipeline, only the expected output given the input.  
+### Example end-to-end test
+```python
+# Importing necessary modules
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import pandas as pd
+
+# Step 1: Initialize Spark session
+spark = SparkSession.builder.appName("ETL End-to-End Test").getOrCreate()
+
+# Step 2: Simulate data extraction (Source)
+# Simulating a small dataset as source data, typically this data would come from a database or a file.
+source_data = [(1, "John", "2023-01-01"), (2, "Jane", "2023-01-02")]
+source_columns = ["ID", "Name", "Created_At"]
+source_df = spark.createDataFrame(source_data, source_columns)
+
+# Step 3: Data Transformation
+# Applying transformation logic (For example: converting "Name" to uppercase)
+transformed_df = source_df.withColumn("Name", col("Name").upper())
+
+# Step 4: Data Loading (Simulated as in-memory target for testing)
+# Loading data to a simulated target system (can be a database, file, etc.)
+target_df = transformed_df  # In practice, this would be a database write operation
+
+# Step 5: End-to-End Test - Validate the entire pipeline
+def end_to_end_test(source_df, target_df):
+    # Validate Extraction: Check if source data is correct
+    assert source_df.count() == 2, "Source data extraction failed."
+
+    # Validate Transformation: Check if "Name" column is properly transformed
+    transformed_rows = target_df.filter(col("Name") == "JOHN")
+    assert transformed_rows.count() == 1, "Transformation failed. 'Name' was not transformed to uppercase."
+
+    # Validate Load: Check if the data exists in the target
+    target_count = target_df.count()
+    assert target_count == 2, f"Data load failed. Expected 2 rows, found {target_count} rows in target."
+
+    print("End-to-End Test Passed: Data pipeline works correctly from extraction to loading.")
+
+# Step 6: Run the End-to-End Test
+end_to_end_test(source_df, target_df)
+```
 
 ---
 
