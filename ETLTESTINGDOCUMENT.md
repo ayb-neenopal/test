@@ -87,6 +87,163 @@ Validate each logical unit or function that is part of the ETL process. If the p
 4. Write a CI pipeline using `.yml` and set a trigger on Pull Requests to test all tests before committing.  
 
 ---
+# Writing Unit Test in PySpark
+
+## Testing a DataFrame Transformation
+
+### Step 1: Sample CSV Data
+
+Consider the following CSV file `animal_info.csv`:
+
+
+### Step 2: Expected DataFrame Output
+
+After applying the transformation, the resulting DataFrame should look like this:
+
+| Species  | Family     |
+|----------|------------|
+| Bear     | Carnivore  |
+| Monkey   | Primate    |
+| Fish     | null       |
+
+### Step 3: Create a Data Transformation Function
+
+Write a transformation function `clean_animals` to split the `animal_info` column into `species` and `family`:
+
+```python
+from pyspark.sql.functions import split, col
+
+def clean_animals(df):
+    parts = split(col("animal_info"), "\&")
+    return df.select(
+        parts[0].alias("species"),
+        parts[1].alias("family"),
+    )
+### Step 4: Write the Unit Test
+
+Now, let's write the unit test for the `clean_animals` function. The test will check whether the transformation produces the expected output.
+
+```python
+def test_clean_animals(spark):
+    # Step 1: Read the input CSV file into a DataFrame
+    df = spark.read.option("header", True).csv("/tests/resources/animals.csv")
+    
+    # Step 2: Apply the transformation function to the DataFrame
+    actual_df = df.transform(clean_animals)
+    
+    # Step 3: Define the expected output DataFrame
+    expected_data = [("bear", "carnivore"), ("monkey", "primate"), ("fish", None)]
+    expected_df = spark.createDataFrame(expected_data, ["Species", "family"])
+
+    # Step 4: Assert that the actual DataFrame equals the expected DataFrame
+    assert_df_equality(actual_df, expected_df)
+```
+### Explanation of the Unit Test
+
+1. **Read the Input CSV**: 
+   The test reads a CSV file (`animals.csv`) containing animal information into a DataFrame.
+
+2. **Apply the Transformation**: 
+   The test applies the `clean_animals` function to split the `animal_info` column into two columns: `species` and `family`.
+
+3. **Define Expected Data**: 
+   The expected output is defined as a list of tuples, where each tuple represents a row of the expected DataFrame. For example, it expects `("bear", "carnivore")`, `("monkey", "primate")`, and `("fish", None)` as the output.
+
+4. **Compare DataFrames**: 
+   The test uses the `assert_df_equality` function to compare the transformed DataFrame (`actual_df`) with the expected DataFrame (`expected_df`). If both DataFrames are identical, the test passes. Otherwise, it fails.
+
+
+## Testing a Column Function
+
+### Step 1: Start with the column function
+
+```python
+def life_stage(col):
+    return (
+      F.when(col < 13, "child")
+      .when(col.between(13, 19), "teenager")
+      .when(col > 19, "adult")
+    )
+```
+
+### Step 2: Create a DataFrame with the expected return value
+```python
+df = spark.createDataFrame(
+  [
+    ("karen", 56, "adult"),
+    ("jodie", 16, "teenager"),
+    ("jason", 3, "child"),
+    (None, None, None),
+  ]
+).toDF("first_name", "age", "expected")
+```
+
+### Step 3: Run the life_stage function to get the actual value
+```python
+res = df.withColumn("actual", life_stage(F.col("age")))
+```
+
+### Step 4: Use Chispa to confirm actual and expected match
+(Chispa is a testing library for PySpark)
+
+```python
+import chispa
+chispa.assert_column_equality(res, "expected", "actual")
+```
+
+**We can also test the queries by using pyspark and no other library by assert function in the same way **
+
+# Unit Testing a Query with PySpark
+
+**step 1. Query to Test**
+
+      SELECT * FROM my_table WHERE amount > 30.0
+
+**Step 2: parameterize query**
+
+      query = "SELECT * FROM (df) WHERE amount > {amount}"
+
+**Step 3: create a sample dataset**
+```python
+      from pyspark.sql import SparkSession
+      import datetime
+
+       # Initialize Spark session
+       spark = SparkSession.builder.appName("UnitTestQuery").getOrCreate()
+
+       # Sample dataset
+       df = spark.createDataFrame(
+      [
+        ("socks", 7.55, datetime.date(2022, 5, 15)),
+        ("handbag", 49.99, datetime.date(2022, 5, 16)),
+        ("shorts", 35.00, datetime.date(2023, 1, 5)),
+        ("socks", 25.08, datetime.date(2023, 12, 23)),
+      ],
+      ["item", "amount", "purchase_date"],
+      )
+```
+**Step 4: Create an expected result**
+```python
+     expected_df = spark.createDataFrame(
+       [
+         ("handbag", 49.99, datetime.date(2022, 5, 16)),
+         ("shorts", 35.00, datetime.date(2023, 1, 5)),
+       ],
+       ["item", "amount", "purchase_date"],
+     )
+```
+**Step 5: make an assertion**
+```python
+       from pyspark.testing.sqlutils import **assertDataFrameEqual**
+
+       # Execute the query with parameterized value
+       actual_df = spark.sql(query.format(amount=30.0), df)
+
+       # Compare actual and expected DataFrames
+       assertDataFrameEqual(actual_df, expected_df)
+```
+
+---
 
 ### **Data Quality Tests**  
 
@@ -394,8 +551,11 @@ DBT (Data Build Tool) is a popular framework for transforming and testing data i
 - **Documentation**: Auto-generate model and test documentation for easier collaboration.
 - **Data Lineage**: Visualize dependencies between models for better understanding.
 
-##**Testing using dbt** 
+##**Testing using dbt**
+file structure 
+
 ![image](https://github.com/user-attachments/assets/69f519e2-8523-49fd-8223-5d99581b9c85)
+
 ##**runs tests usind dbt test command**
 ![image](https://github.com/user-attachments/assets/63abebad-42cf-47c4-ae9b-c8fc0f6a3af5)
 
@@ -439,161 +599,6 @@ great_expectations/ ├── expectations/ # Stores expectation suites (validat
 ![image](https://github.com/user-attachments/assets/a3d889ba-7e4d-44ad-b223-15c38f55ccf6)
 
 ---
-# Writing Unit Test in PySpark
-
-## Testing a DataFrame Transformation
-
-### Step 1: Sample CSV Data
-
-Consider the following CSV file `animal_info.csv`:
-
-
-### Step 2: Expected DataFrame Output
-
-After applying the transformation, the resulting DataFrame should look like this:
-
-| Species  | Family     |
-|----------|------------|
-| Bear     | Carnivore  |
-| Monkey   | Primate    |
-| Fish     | null       |
-
-### Step 3: Create a Data Transformation Function
-
-Write a transformation function `clean_animals` to split the `animal_info` column into `species` and `family`:
-
-```python
-from pyspark.sql.functions import split, col
-
-def clean_animals(df):
-    parts = split(col("animal_info"), "\&")
-    return df.select(
-        parts[0].alias("species"),
-        parts[1].alias("family"),
-    )
-### Step 4: Write the Unit Test
-
-Now, let's write the unit test for the `clean_animals` function. The test will check whether the transformation produces the expected output.
-
-```python
-def test_clean_animals(spark):
-    # Step 1: Read the input CSV file into a DataFrame
-    df = spark.read.option("header", True).csv("/tests/resources/animals.csv")
-    
-    # Step 2: Apply the transformation function to the DataFrame
-    actual_df = df.transform(clean_animals)
-    
-    # Step 3: Define the expected output DataFrame
-    expected_data = [("bear", "carnivore"), ("monkey", "primate"), ("fish", None)]
-    expected_df = spark.createDataFrame(expected_data, ["Species", "family"])
-
-    # Step 4: Assert that the actual DataFrame equals the expected DataFrame
-    assert_df_equality(actual_df, expected_df)
-```
-### Explanation of the Unit Test
-
-1. **Read the Input CSV**: 
-   The test reads a CSV file (`animals.csv`) containing animal information into a DataFrame.
-
-2. **Apply the Transformation**: 
-   The test applies the `clean_animals` function to split the `animal_info` column into two columns: `species` and `family`.
-
-3. **Define Expected Data**: 
-   The expected output is defined as a list of tuples, where each tuple represents a row of the expected DataFrame. For example, it expects `("bear", "carnivore")`, `("monkey", "primate")`, and `("fish", None)` as the output.
-
-4. **Compare DataFrames**: 
-   The test uses the `assert_df_equality` function to compare the transformed DataFrame (`actual_df`) with the expected DataFrame (`expected_df`). If both DataFrames are identical, the test passes. Otherwise, it fails.
-
-
-## Testing a Column Function
-
-### Step 1: Start with the column function
-
-```python
-def life_stage(col):
-    return (
-      F.when(col < 13, "child")
-      .when(col.between(13, 19), "teenager")
-      .when(col > 19, "adult")
-    )
-```
-
-### Step 2: Create a DataFrame with the expected return value
-```python
-df = spark.createDataFrame(
-  [
-    ("karen", 56, "adult"),
-    ("jodie", 16, "teenager"),
-    ("jason", 3, "child"),
-    (None, None, None),
-  ]
-).toDF("first_name", "age", "expected")
-```
-
-### Step 3: Run the life_stage function to get the actual value
-```python
-res = df.withColumn("actual", life_stage(F.col("age")))
-```
-
-### Step 4: Use Chispa to confirm actual and expected match
-(Chispa is a testing library for PySpark)
-
-```python
-import chispa
-chispa.assert_column_equality(res, "expected", "actual")
-```
-
-**We can also test the queries by using pyspark and no other library by assert function in the same way **
-
-# Unit Testing a Query with PySpark
-
-**step 1. Query to Test**
-
-      SELECT * FROM my_table WHERE amount > 30.0
-
-**Step 2: parameterize query**
-
-      query = "SELECT * FROM (df) WHERE amount > {amount}"
-
-**Step 3: create a sample dataset**
-```python
-      from pyspark.sql import SparkSession
-      import datetime
-
-       # Initialize Spark session
-       spark = SparkSession.builder.appName("UnitTestQuery").getOrCreate()
-
-       # Sample dataset
-       df = spark.createDataFrame(
-      [
-        ("socks", 7.55, datetime.date(2022, 5, 15)),
-        ("handbag", 49.99, datetime.date(2022, 5, 16)),
-        ("shorts", 35.00, datetime.date(2023, 1, 5)),
-        ("socks", 25.08, datetime.date(2023, 12, 23)),
-      ],
-      ["item", "amount", "purchase_date"],
-      )
-```
-**Step 4: Create an expected result**
-```python
-     expected_df = spark.createDataFrame(
-       [
-         ("handbag", 49.99, datetime.date(2022, 5, 16)),
-         ("shorts", 35.00, datetime.date(2023, 1, 5)),
-       ],
-       ["item", "amount", "purchase_date"],
-     )
-```
-**Step 5: make an assertion**
-```python
-       from pyspark.testing.sqlutils import **assertDataFrameEqual**
-
-       # Execute the query with parameterized value
-       actual_df = spark.sql(query.format(amount=30.0), df)
-
-       # Compare actual and expected DataFrames
-       assertDataFrameEqual(actual_df, expected_df)
-```
 # Modelling Data For Testing:
 1. **Mock Data**
    
