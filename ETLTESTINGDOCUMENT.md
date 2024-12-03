@@ -14,7 +14,7 @@ ETL testing verifies that:
 
 ## Before Making a Data Pipeline Testing Strategy  
 
-The following things should be known and doc                                               umented well:  
+The following things should be known and documented well:  
 
 ### 1. Identify Key Components of Your Data Pipeline  
 Write down each stage of your data pipeline and functions involved.  
