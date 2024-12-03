@@ -332,6 +332,26 @@ def test_crm_users_entity(self, snowflake_executor: SnowflakeExecutor, task_fact
         pd.testing.assert_frame_equal(actual, expected)
 
 ```
+## Key Details of What It Is Testing
+
+### The test is checking the entire flow from creating a table in Snowflake (CREATE OR REPLACE TRANSIENT TABLE HUBSPOT.CONTACT), executing a task (hubspot_create_crm_entity), and validating the final data (SELECT * FROM HUBSPOT.CONTACT).
+
+### Task Logic
+- Tests the behavior of the task `hubspot_create_crm_entity`, ensuring it processes and transforms the data correctly for `Entity.USERS`.
+
+### Database Interaction
+- Verifies whether the task interacts properly with the Snowflake database, including table creation, updates, or inserts.
+
+### Data Consistency
+- Ensures the data in the `HUBSPOT.CONTACT` table after task execution matches the expected values.
+
+### Isolated Test Data
+- The SQL query creates a transient table with mock data (`ID=1`, `CREATED_AT='2022-01-01'`). This is not production data; it is a sample dataset crafted specifically for the test.
+
+### No Impact on Production
+- The test does not involve or affect production data. The transient table exists only during the test and is automatically removed afterward.
+
+---
 # Explanation
 
 ### Setup
@@ -363,24 +383,7 @@ def test_crm_users_entity(self, snowflake_executor: SnowflakeExecutor, task_fact
 
 ---
 
-## Key Details of What It Is Testing
 
-### Task Logic
-- Tests the behavior of the task `hubspot_create_crm_entity`, ensuring it processes and transforms the data correctly for `Entity.USERS`.
-
-### Database Interaction
-- Verifies whether the task interacts properly with the Snowflake database, including table creation, updates, or inserts.
-
-### Data Consistency
-- Ensures the data in the `HUBSPOT.CONTACT` table after task execution matches the expected values.
-
-### Isolated Test Data
-- The SQL query creates a transient table with mock data (`ID=1`, `CREATED_AT='2022-01-01'`). This is not production data; it is a sample dataset crafted specifically for the test.
-
-### No Impact on Production
-- The test does not involve or affect production data. The transient table exists only during the test and is automatically removed afterward.
-
----
 
 # Tools and Libraries for Testing
 
